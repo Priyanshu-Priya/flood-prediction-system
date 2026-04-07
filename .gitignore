@@ -1,0 +1,60 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual Environment ──
+.venv/
+venv/
+env/
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Data (large files — don't commit) ──
+data/raw/
+data/processed/
+*.tif
+*.tiff
+*.hdf5
+*.h5
+*.nc
+*.grd
+*.zarr/
+
+# ── Model checkpoints ──
+models/checkpoints/
+*.pt
+*.pth
+*.json
+!pyproject.toml
+!docker/docker-compose.yml
+!.env.example
+
+# ── Logs ──
+logs/
+*.log
+*.jsonl
+
+# ── Outputs ──
+outputs/
+
+# ── Environment ──
+.env
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Jupyter ──
+.ipynb_checkpoints/
