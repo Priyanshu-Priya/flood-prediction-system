@@ -199,7 +199,7 @@ class XGBoostSettings(BaseSettings):
     # Training
     early_stopping_rounds: int = 50
     eval_metric: str = "auc"
-    tree_method: str = "gpu_hist"      # GPU-accelerated on RTX 4050
+    tree_method: str = "hist"          # GPU-accelerated on RTX 4050 (via device config)
     device: str = "cuda:0"
 
     # Spatial validation

@@ -111,6 +111,7 @@ with st.sidebar:
     aoi_preset = st.selectbox(
         "Quick Select",
         [
+            "Global Search",
             "Custom",
             "Greater Chennai",
             "Mumbai Metropolitan",
@@ -133,7 +134,35 @@ with st.sidebar:
         "Bengaluru Urban": (77.4, 12.8, 77.8, 13.15),
     }
 
-    if aoi_preset == "Custom":
+    if aoi_preset == "Global Search":
+        search_query = st.text_input("Enter city or coordinates", placeholder="e.g. Paris, France")
+        if search_query:
+            import geopy
+            from geopy.geocoders import Nominatim
+            try:
+                geolocator = Nominatim(user_agent="flood_risk_dashboard")
+                location = geolocator.geocode(search_query)
+                if location:
+                    st.success(f"📍 {location.address}")
+                    bbox_str = location.raw.get('boundingbox')
+                    if bbox_str:
+                        # Nominatim bbox: [lat_min, lat_max, lon_min, lon_max]
+                        min_lat, max_lat, min_lon, max_lon = map(float, bbox_str)
+                    else:
+                        min_lat = location.latitude - 0.1
+                        max_lat = location.latitude + 0.1
+                        min_lon = location.longitude - 0.1
+                        max_lon = location.longitude + 0.1
+                    
+                    st.session_state["bbox"] = (min_lon, min_lat, max_lon, max_lat)
+                    st.session_state["search_lat"] = location.latitude
+                    st.session_state["search_lon"] = location.longitude
+                    st.session_state["active_station_name"] = search_query.split(',')[0].title()
+                else:
+                    st.error("Location not found.")
+            except Exception as e:
+                st.error("Geocoding service unavailable.")
+    elif aoi_preset == "Custom":
         col1, col2 = st.columns(2)
         with col1:
             min_lon = st.number_input("Min Lon", value=80.0, step=0.1)
@@ -141,9 +170,11 @@ with st.sidebar:
         with col2:
             max_lon = st.number_input("Max Lon", value=80.4, step=0.1)
             max_lat = st.number_input("Max Lat", value=13.2, step=0.1)
+        st.session_state["bbox"] = (min_lon, min_lat, max_lon, max_lat)
+        st.session_state["active_station_name"] = "Custom Location"
     else:
-        bbox = PRESETS[aoi_preset]
-        min_lon, min_lat, max_lon, max_lat = bbox
+        st.session_state["bbox"] = PRESETS[aoi_preset]
+        st.session_state["active_station_name"] = aoi_preset
 
     st.markdown("---")
     st.markdown(

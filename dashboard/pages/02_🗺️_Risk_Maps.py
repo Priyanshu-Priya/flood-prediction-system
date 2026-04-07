@@ -13,11 +13,11 @@ st.markdown("XGBoost-predicted flood probability overlaid on terrain")
 # Controls
 col1, col2, col3 = st.columns(3)
 
+default_bbox = st.session_state.get("bbox", (80.0, 12.8, 80.4, 13.25))
+default_region_name = st.session_state.get("active_station_name", "Selected Region")
+
 with col1:
-    region = st.selectbox("Region", [
-        "Greater Chennai", "Mumbai Metropolitan",
-        "Brahmaputra Basin", "Ganga Basin (Bihar)",
-    ])
+    st.text_input("Active Region (from Sidebar)", value=default_region_name, disabled=True)
 with col2:
     overlay = st.selectbox("Overlay", [
         "Flood Probability", "TWI", "Slope", "Distance to Channel",
@@ -27,23 +27,42 @@ with col3:
 
 st.markdown("---")
 
-# Generate sample data for visualization
-np.random.seed(42)
+# Fetch risk stats from API
+api_url = "http://localhost:8000/predict/susceptibility"
+payload = {
+    "min_lon": default_bbox[0],
+    "min_lat": default_bbox[1],
+    "max_lon": default_bbox[2],
+    "max_lat": default_bbox[3],
+    "resolution_m": 100
+}
+
+import requests
+try:
+    with st.spinner("Fetching spatial susceptibility from XGBoost..."):
+        response = requests.post(api_url, json=payload)
+        if response.status_code == 200:
+            stats_data = response.json()
+        else:
+            st.error(f"API Error ({response.status_code}): {response.text}")
+            st.stop()
+except Exception as e:
+    st.error(f"Failed to connect to API backend: {e}")
+    st.stop()
+
+# Generate visual representation (Since terrain rasters are WIP, we construct a procedural map seeded by location)
+np.random.seed(int(default_bbox[0] * default_bbox[1] * 100) % (2**32))
 grid_size = 100
 
-# Create synthetic but realistic-looking terrain
-x = np.linspace(0, 1, grid_size)
-y = np.linspace(0, 1, grid_size)
+x = np.linspace(default_bbox[0], default_bbox[2], grid_size)
+y = np.linspace(default_bbox[1], default_bbox[3], grid_size)
 X, Y = np.meshgrid(x, y)
 
-# Simulate a river valley with flood plain
-elevation = 50 + 30 * np.sin(3 * X) * np.cos(2 * Y) + 10 * np.random.randn(grid_size, grid_size) * 0.1
-river_channel = np.exp(-((Y - 0.5) ** 2) / 0.01)
+# Simulate terrain mechanics for visual context 
+elevation = 50 + 30 * np.sin(3 * (X - default_bbox[0])) * np.cos(2 * (Y - default_bbox[1])) + 10 * np.random.randn(grid_size, grid_size) * 0.1
+river_channel = np.exp(-((Y - (default_bbox[1] + default_bbox[3])/2) ** 2) / 0.005)
 
-# TWI (high near river, low on slopes)
 twi = 5 + 10 * river_channel + np.random.randn(grid_size, grid_size) * 0.5
-
-# Flood probability (correlated with TWI)
 flood_prob = 1 / (1 + np.exp(-(twi - 10) / 2)) + np.random.randn(grid_size, grid_size) * 0.05
 flood_prob = np.clip(flood_prob, 0, 1)
 
@@ -67,20 +86,20 @@ with col_map:
         colorscale = "YlOrRd"
         title = "Slope (degrees)"
     else:
-        data = np.sqrt((Y - 0.5) ** 2) * 1000
+        data = np.sqrt((Y - (default_bbox[1] + default_bbox[3])/2) ** 2) * 111000 # Roughly to meters
         colorscale = "Viridis_r"
         title = "Distance to Channel (m)"
 
     fig = go.Figure(data=go.Heatmap(
-        z=data,
+        z=data, x=x, y=y,
         colorscale=colorscale,
         colorbar=dict(title=title, thickness=20),
     ))
 
     fig.update_layout(
-        title=f"{title} — {region}",
-        xaxis_title="Easting (grid cells)",
-        yaxis_title="Northing (grid cells)",
+        title=f"{title} — {default_region_name}",
+        xaxis_title="Longitude",
+        yaxis_title="Latitude",
         height=600,
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
@@ -90,26 +109,27 @@ with col_map:
     st.plotly_chart(fig, use_container_width=True)
 
 with col_stats:
-    st.markdown("### Risk Summary")
+    st.markdown("### XGBoost Risk Summary")
 
-    total_cells = grid_size ** 2
-    high_risk = (flood_prob >= threshold).sum()
-
-    st.metric("Total Grid Cells", f"{total_cells:,}")
-    st.metric("High Risk Cells", f"{high_risk:,}", delta=f"{high_risk/total_cells*100:.1f}%")
-    st.metric("Mean Probability", f"{flood_prob.mean():.3f}")
-    st.metric("Max Probability", f"{flood_prob.max():.3f}")
-    st.metric("P95 Probability", f"{np.percentile(flood_prob, 95):.3f}")
+    st.metric("Total Grid Cells", f"{stats_data['n_cells']:,}")
+    # Calculate high risk from API distribution instead of visual map
+    high_risk_cells = stats_data['risk_distribution'].get('red', 0) + stats_data['risk_distribution'].get('orange', 0)
+    st.metric("High Risk Cells", f"{high_risk_cells:,}")
+    st.metric("Mean Probability", f"{stats_data['mean_probability']:.3f}")
+    st.metric("Max Probability", f"{stats_data['max_probability']:.3f}")
 
     st.markdown("---")
-    st.markdown("### Risk Distribution")
+    st.markdown("### Risk Distribution (API)")
 
-    for level, (low, high), color in [
-        ("🟢 GREEN", (0, 0.3), "#16a34a"),
-        ("🟡 YELLOW", (0.3, 0.6), "#eab308"),
-        ("🟠 ORANGE", (0.6, 0.8), "#ea580c"),
-        ("🔴 RED", (0.8, 1.0), "#dc2626"),
+    rd = stats_data.get('risk_distribution', {})
+    rp = stats_data.get('risk_percentages', {})
+    
+    for level, code, color in [
+        ("GREEN", "green", "#16a34a"),
+        ("YELLOW", "yellow", "#eab308"),
+        ("ORANGE", "orange", "#ea580c"),
+        ("RED", "red", "#dc2626"),
     ]:
-        count = ((flood_prob >= low) & (flood_prob < high)).sum()
-        pct = count / total_cells * 100
+        count = rd.get(code, 0)
+        pct = rp.get(code, 0.0)
         st.markdown(f"**{level}**: {count:,} ({pct:.1f}%)")
