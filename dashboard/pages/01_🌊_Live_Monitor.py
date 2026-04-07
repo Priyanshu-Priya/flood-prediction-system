@@ -10,7 +10,7 @@ import numpy as np
 
 st.set_page_config(page_title="Live Monitor", page_icon="🌊", layout="wide")
 st.markdown("# 🌊 Live Flood Monitor")
-st.markdown("Real-time water levels from CWC telemetry stations across India")
+st.markdown("Real-time water levels from GloFAS virtual telemetry stations across India")
 
 # Sample station data (production would pull from API)
 stations_data = pd.DataFrame([

@@ -62,20 +62,8 @@ for _dir in [RAW_DATA_DIR, PROCESSED_DATA_DIR, MODEL_DIR, OUTPUT_DIR, LOG_DIR]:
 # India-Centric Data Sources
 # ──────────────────────────────────────────────────────────────
 
-class IndiaDataSourceSettings(BaseSettings):
-    """API endpoints and credentials for India-specific data sources."""
-
-    # India-WRIS (Water Resources Information System)
-    wris_base_url: str = "https://indiawris.gov.in/api"
-    wris_api_key: Optional[str] = None
-
-    # IMD (India Meteorological Department) — Gridded rainfall
-    imd_base_url: str = "https://www.imdpune.gov.in/cmpg/Griddata"
-    imd_grid_resolution: float = 0.25  # degrees (0.25° × 0.25°)
-
-    # CWC (Central Water Commission) — Flood forecasts
-    cwc_base_url: str = "https://cwc.gov.in/api"
-    cwc_bulletin_url: str = "https://ffs.cwc.gov.in"
+class DataSourceSettings(BaseSettings):
+    """API endpoints and credentials for data sources."""
 
     # NASA GPM (Global Precipitation Measurement) — 30-min rainfall
     gpm_base_url: str = "https://gpm.nasa.gov/data"
@@ -100,7 +88,15 @@ class IndiaDataSourceSettings(BaseSettings):
     copernicus_client_id: Optional[str] = None
     copernicus_client_secret: Optional[str] = None
 
-    model_config = {"env_prefix": "FLOOD_DATA_", "env_file": ".env"}
+    # Google Earth Engine (Community Edition)
+    gee_project_id: Optional[str] = None
+    gee_service_account_json_path: Optional[str] = None
+
+    # GloFAS / Copernicus EWDS (global river discharge)
+    glofas_ewds_key: Optional[str] = None
+    glofas_dataset: str = "cems-glofas-historical"
+
+    model_config = {"env_prefix": "FLOOD_DATA_", "env_file": ".env", "extra": "ignore"}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -131,7 +127,7 @@ class GeospatialSettings(BaseSettings):
     sar_water_threshold_db: float = -16.0  # σ⁰_VV threshold for water
     sar_polarization: str = "VV"
 
-    model_config = {"env_prefix": "FLOOD_GEO_", "env_file": ".env"}
+    model_config = {"env_prefix": "FLOOD_GEO_", "env_file": ".env", "extra": "ignore"}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -168,13 +164,16 @@ class LSTMSettings(BaseSettings):
     mixed_precision: bool = True       # FP16 training for speed
     num_workers: int = 4               # DataLoader workers
 
-    model_config = {"env_prefix": "FLOOD_LSTM_", "env_file": ".env"}
+    model_config = {"env_prefix": "FLOOD_LSTM_", "env_file": ".env", "extra": "ignore"}
 
     @field_validator("device")
     @classmethod
     def validate_device(cls, v: str) -> str:
-        import torch
-        if v == "cuda" and not torch.cuda.is_available():
+        try:
+            import torch
+            if v == "cuda" and not torch.cuda.is_available():
+                return "cpu"
+        except ImportError:
             return "cpu"
         return v
 
@@ -207,7 +206,7 @@ class XGBoostSettings(BaseSettings):
     n_spatial_folds: int = 5           # Leave-one-watershed-out CV
     positive_weight_ratio: float = 5.0  # Handle class imbalance (floods are rare)
 
-    model_config = {"env_prefix": "FLOOD_XGB_", "env_file": ".env"}
+    model_config = {"env_prefix": "FLOOD_XGB_", "env_file": ".env", "extra": "ignore"}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -227,7 +226,7 @@ class EnsembleSettings(BaseSettings):
         "red": 0.8,
     })
 
-    model_config = {"env_prefix": "FLOOD_ENS_", "env_file": ".env"}
+    model_config = {"env_prefix": "FLOOD_ENS_", "env_file": ".env", "extra": "ignore"}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -245,7 +244,7 @@ class APISettings(BaseSettings):
     api_key: Optional[str] = None
     model_cache_ttl: int = 3600        # Seconds to cache loaded models
 
-    model_config = {"env_prefix": "FLOOD_API_", "env_file": ".env"}
+    model_config = {"env_prefix": "FLOOD_API_", "env_file": ".env", "extra": "ignore"}
 
 
 class DashboardSettings(BaseSettings):
@@ -257,7 +256,7 @@ class DashboardSettings(BaseSettings):
     map_default_zoom: int = 5
     refresh_interval_sec: int = 300    # Auto-refresh every 5 minutes
 
-    model_config = {"env_prefix": "FLOOD_DASH_", "env_file": ".env"}
+    model_config = {"env_prefix": "FLOOD_DASH_", "env_file": ".env", "extra": "ignore"}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -268,13 +267,15 @@ class Settings:
     """Aggregated settings — single access point for all configuration."""
 
     def __init__(self):
-        self.data_sources = IndiaDataSourceSettings()
+        self.data_sources = DataSourceSettings()
         self.geospatial = GeospatialSettings()
         self.lstm = LSTMSettings()
         self.xgboost = XGBoostSettings()
         self.ensemble = EnsembleSettings()
         self.api = APISettings()
         self.dashboard = DashboardSettings()
+
+
 
     # India-specific UTM zone lookup based on longitude
     UTM_ZONES_INDIA: dict[str, str] = {

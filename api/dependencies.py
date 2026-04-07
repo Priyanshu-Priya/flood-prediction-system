@@ -74,9 +74,11 @@ def get_ensemble_combiner():
 
 
 def get_gauge_client():
-    """Get India-WRIS gauge data client."""
-    from src.ingestion.stream_gauges import IndiaWRISClient
-    return IndiaWRISClient()
+    """
+    Get the active gauge data client (GloFAS).
+    """
+    from src.ingestion.glofas import GloFASClient
+    return GloFASClient()
 
 
 def get_uptime() -> float:

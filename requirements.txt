@@ -86,6 +86,11 @@ netCDF4>=1.7
 zarr>=2.18                     # Cloud-optimized array storage
 pyarrow>=17.0                  # Parquet I/O
 
+# --- Copernicus / GloFAS ---
+cdsapi>=0.7                    # CDS API client for EWDS downloads
+cfgrib>=0.9                    # GRIB → xarray engine (GloFAS format)
+eccodes>=2.38                  # ECMWF GRIB codec (cfgrib backend)
+
 # --- Utilities ---
 tqdm>=4.66
 requests>=2.32

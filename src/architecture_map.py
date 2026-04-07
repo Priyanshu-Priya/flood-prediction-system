@@ -4,7 +4,6 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 class DataLayer(str, Enum):
-    INDIA_WRIS = "india_wris"
     IMD = "imd"
     GRDC = "grdc"
     GLOFAS = "glofas"
@@ -18,7 +17,7 @@ class AOI(BaseModel):
 class DataIngestionLayer:
     def __init__(self, use_global_fallback: bool = True):
         self.use_global_fallback = use_global_fallback
-        self.active_sources = [DataLayer.INDIA_WRIS, DataLayer.IMD, DataLayer.GEE_S1]
+        self.active_sources = [DataLayer.IMD, DataLayer.GEE_S1]
         if self.use_global_fallback:
             self.active_sources.extend([DataLayer.GRDC, DataLayer.GLOFAS])
 
@@ -39,5 +38,5 @@ class HybridSystemArchitecture:
         
     def dispatch_source(self, region_is_india: bool) -> list[DataLayer]:
         if region_is_india:
-            return [DataLayer.INDIA_WRIS, DataLayer.IMD]
+            return [DataLayer.GLOFAS, DataLayer.IMD]
         return [DataLayer.GRDC, DataLayer.GLOFAS]

@@ -148,7 +148,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown(
         "**Built with** PyTorch + XGBoost + FastAPI\n\n"
-        "**Data**: India-WRIS | IMD | Sentinel-1 | ALOS PALSAR"
+        "**Data**: GloFAS | IMD | Sentinel-1 | ALOS PALSAR"
     )
 
 
@@ -162,7 +162,7 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric("🌧️ Active Alerts", "3", delta="↑ 1 from yesterday", delta_color="inverse")
 with col2:
-    st.metric("📊 Monitored Stations", "325", help="CWC telemetry stations")
+    st.metric("📊 Monitored Stations", "325", help="GloFAS virtual telemetry stations")
 with col3:
     st.metric("🎯 Model NSE", "0.82", help="Nash-Sutcliffe Efficiency on validation")
 with col4:
@@ -222,8 +222,8 @@ with st.expander("🏗️ System Architecture", expanded=False):
     ```
     ┌─────────────────────────────────────────────────────────┐
     │                  DATA INGESTION LAYER                    │
-    │  Sentinel-1 SAR │ India-WRIS │ IMD Rainfall │ SMAP     │
-    │  (STAC API)     │ (CWC)     │ (GPM/ERA5)   │ (Soil)   │
+    │  Sentinel-1 SAR │ GloFAS EWDS│ IMD Rainfall │ SMAP     │
+    │  (STAC API)     │ (Global)  │ (GPM/ERA5)   │ (Soil)   │
     └────────┬────────┴─────┬─────┴──────┬───────┴──────┬───┘
              │              │            │              │
     ┌────────▼──────────────▼────────────▼──────────────▼───┐

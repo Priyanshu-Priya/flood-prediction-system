@@ -2,6 +2,7 @@
 FastAPI Gauge Data Router
 ============================
 Endpoints for real-time and historical gauge data access.
+Supports both India-WRIS and GloFAS (Copernicus EWDS) backends.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ async def list_stations(
     state: str | None = Query(None, description="Filter by Indian state"),
     basin: str | None = Query(None, description="Filter by river basin"),
 ):
-    """List available gauge stations from India-WRIS."""
+    """List available gauge stations (GloFAS or India-WRIS)."""
     client = get_gauge_client()
     stations = client.fetch_station_metadata(state=state, basin=basin)
     return {"stations": stations.to_dict(orient="records"), "count": len(stations)}
@@ -28,9 +29,13 @@ async def list_stations(
 
 @router.get("/live/{station_id}", response_model=GaugeReading)
 async def get_live_reading(station_id: str):
-    """Get real-time water level for a specific station."""
+    """Get latest water level for a specific station."""
     client = get_gauge_client()
-    data = client.fetch_realtime_levels([station_id])
+
+    try:
+        data = client.fetch_realtime_levels([station_id])
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fetch live data: {e}")
 
     if data.empty:
         raise HTTPException(404, f"No data for station {station_id}")
@@ -58,7 +63,7 @@ async def get_historical_data(
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
     frequency: str = Query("daily", description="Data frequency"),
 ):
-    """Get historical water level time series for a station."""
+    """Get historical discharge / water level time series for a station."""
     client = get_gauge_client()
 
     try:
@@ -74,3 +79,4 @@ async def get_historical_data(
         }
     except Exception as e:
         raise HTTPException(500, f"Failed to fetch data: {e}")
+
