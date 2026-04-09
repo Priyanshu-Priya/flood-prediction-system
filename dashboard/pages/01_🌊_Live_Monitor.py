@@ -7,34 +7,57 @@ import folium
 from streamlit_folium import st_folium
 import pandas as pd
 import numpy as np
+import requests
 
 st.set_page_config(page_title="Live Monitor", page_icon="🌊", layout="wide")
 st.markdown("# 🌊 Live Flood Monitor")
 st.markdown("Real-time water levels from GloFAS virtual telemetry stations across India")
 
-# Sample station data (production would pull from API)
-stations_data = pd.DataFrame([
-    {"name": "Farakka Barrage", "lat": 24.81, "lon": 87.92, "river": "Ganga",
-     "level": 12.5, "danger": 15.0, "warning": 13.5, "alert": "GREEN"},
-    {"name": "Varanasi", "lat": 25.32, "lon": 83.01, "river": "Ganga",
-     "level": 14.2, "danger": 15.0, "warning": 13.5, "alert": "ORANGE"},
-    {"name": "Patna", "lat": 25.60, "lon": 85.10, "river": "Ganga",
-     "level": 10.8, "danger": 12.0, "warning": 10.5, "alert": "YELLOW"},
-    {"name": "Dibrugarh", "lat": 27.47, "lon": 94.91, "river": "Brahmaputra",
-     "level": 16.3, "danger": 16.0, "warning": 14.5, "alert": "RED"},
-    {"name": "Guwahati", "lat": 26.19, "lon": 91.75, "river": "Brahmaputra",
-     "level": 11.5, "danger": 14.0, "warning": 12.5, "alert": "GREEN"},
-    {"name": "Delhi Yamuna", "lat": 28.68, "lon": 77.24, "river": "Yamuna",
-     "level": 7.2, "danger": 8.5, "warning": 7.5, "alert": "GREEN"},
-    {"name": "Mumbai Mithi", "lat": 19.07, "lon": 72.88, "river": "Mithi",
-     "level": 3.8, "danger": 4.0, "warning": 3.5, "alert": "ORANGE"},
-    {"name": "Adyar Chennai", "lat": 13.01, "lon": 80.25, "river": "Adyar",
-     "level": 2.1, "danger": 3.5, "warning": 2.8, "alert": "GREEN"},
-    {"name": "Surat Tapi", "lat": 21.17, "lon": 72.83, "river": "Tapi",
-     "level": 9.2, "danger": 11.0, "warning": 9.5, "alert": "GREEN"},
-    {"name": "Vijayawada", "lat": 16.52, "lon": 80.62, "river": "Krishna",
-     "level": 8.7, "danger": 10.0, "warning": 9.0, "alert": "GREEN"},
-])
+# Fetch station data from API (fallback to sample data)
+api_url = st.session_state.get("api_url", "http://localhost:8000")
+
+try:
+    stations_res = requests.get(f"{api_url}/gauges/stations", timeout=3)
+    if stations_res.status_code == 200:
+        raw_stations = stations_res.json().get("stations", [])
+        if raw_stations:
+            stations_data = pd.DataFrame(raw_stations)
+            # Ensure required columns with defaults
+            for col, default in [("alert", "GREEN"), ("danger", 15.0), ("warning", 13.0)]:
+                if col not in stations_data.columns:
+                    stations_data[col] = default
+            if "level" not in stations_data.columns:
+                stations_data["level"] = stations_data.get("water_level_m", 0)
+            if "danger" not in stations_data.columns:
+                stations_data["danger"] = stations_data.get("danger_level_m", 15.0)
+        else:
+            raise ValueError("Empty station list")
+    else:
+        raise ConnectionError(f"API returned {stations_res.status_code}")
+except Exception:
+    # Fallback sample data
+    stations_data = pd.DataFrame([
+        {"name": "Farakka Barrage", "lat": 24.81, "lon": 87.92, "river": "Ganga",
+         "level": 12.5, "danger": 15.0, "warning": 13.5, "alert": "GREEN"},
+        {"name": "Varanasi", "lat": 25.32, "lon": 83.01, "river": "Ganga",
+         "level": 14.2, "danger": 15.0, "warning": 13.5, "alert": "ORANGE"},
+        {"name": "Patna", "lat": 25.60, "lon": 85.10, "river": "Ganga",
+         "level": 10.8, "danger": 12.0, "warning": 10.5, "alert": "YELLOW"},
+        {"name": "Dibrugarh", "lat": 27.47, "lon": 94.91, "river": "Brahmaputra",
+         "level": 16.3, "danger": 16.0, "warning": 14.5, "alert": "RED"},
+        {"name": "Guwahati", "lat": 26.19, "lon": 91.75, "river": "Brahmaputra",
+         "level": 11.5, "danger": 14.0, "warning": 12.5, "alert": "GREEN"},
+        {"name": "Delhi Yamuna", "lat": 28.68, "lon": 77.24, "river": "Yamuna",
+         "level": 7.2, "danger": 8.5, "warning": 7.5, "alert": "GREEN"},
+        {"name": "Mumbai Mithi", "lat": 19.07, "lon": 72.88, "river": "Mithi",
+         "level": 3.8, "danger": 4.0, "warning": 3.5, "alert": "ORANGE"},
+        {"name": "Adyar Chennai", "lat": 13.01, "lon": 80.25, "river": "Adyar",
+         "level": 2.1, "danger": 3.5, "warning": 2.8, "alert": "GREEN"},
+        {"name": "Surat Tapi", "lat": 21.17, "lon": 72.83, "river": "Tapi",
+         "level": 9.2, "danger": 11.0, "warning": 9.5, "alert": "GREEN"},
+        {"name": "Vijayawada", "lat": 16.52, "lon": 80.62, "river": "Krishna",
+         "level": 8.7, "danger": 10.0, "warning": 9.0, "alert": "GREEN"},
+    ])
 
 # Alert summary
 col1, col2, col3, col4 = st.columns(4)

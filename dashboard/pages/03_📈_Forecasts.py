@@ -53,10 +53,30 @@ try:
             warning_level = alert_info.get("warning_level_m", 13.5)
             alert = alert_info.get("alert_level", "GREEN")
             
-            # Since the API focuses on future horizons, let's stitch a synthetic history for visual continuity
+            # Try fetching real historical data from the API
             hist_hours = 168
-            hist_time = [fc_time[0] - timedelta(hours=i) for i in range(1, hist_hours+1)][::-1]
-            base_level = fc_mean[0] + np.sin(np.linspace(-np.pi, 0, hist_hours)) * 2 + (np.random.randn(hist_hours) * 0.1)
+            try:
+                hist_res = requests.get(
+                    f"{api_url}/gauges/historical/{selected_station}",
+                    params={"days": 30},
+                    timeout=5,
+                )
+                if hist_res.status_code == 200:
+                    hist_data = hist_res.json()
+                    hist_levels = hist_data.get("data", [])
+                    if hist_levels:
+                        hist_time = [datetime.fromisoformat(h["timestamp"]) for h in hist_levels]
+                        base_level = [h["water_level_m"] for h in hist_levels]
+                        hist_source = "GloFAS Observed"
+                    else:
+                        raise ValueError("Empty history")
+                else:
+                    raise ValueError(f"History API returned {hist_res.status_code}")
+            except Exception:
+                # Synthetic fallback for visual continuity
+                hist_time = [fc_time[0] - timedelta(hours=i) for i in range(1, hist_hours+1)][::-1]
+                base_level = fc_mean[0] + np.sin(np.linspace(-np.pi, 0, hist_hours)) * 2 + (np.random.randn(hist_hours) * 0.1)
+                hist_source = "Simulated History"
         else:
             st.error(f"API Error ({response.status_code}): {response.text}")
             st.stop()
@@ -70,7 +90,7 @@ fig = go.Figure()
 # Historical
 fig.add_trace(go.Scatter(
     x=hist_time, y=base_level,
-    mode="lines", name="Observed (Simulated)",
+    mode="lines", name=hist_source,
     line=dict(color="#00b4d8", width=2),
 ))
 

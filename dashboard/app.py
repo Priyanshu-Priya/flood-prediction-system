@@ -8,6 +8,7 @@ Run: streamlit run dashboard/app.py --server.port 8501
 """
 
 import streamlit as st
+import requests
 
 # ── Page Configuration ──
 st.set_page_config(
@@ -187,15 +188,30 @@ with st.sidebar:
 st.markdown('<h1 class="main-header">🌊 Flood Risk Prediction System</h1>', unsafe_allow_html=True)
 st.markdown("##### Real-time flood monitoring & prediction for India")
 
-# Quick stats
+# Quick stats — fetched from API
+api_url = st.session_state.get("api_url", "http://localhost:8000")
+
+try:
+    health = requests.get(f"{api_url}/health", timeout=2).json()
+    metrics_res = requests.get(f"{api_url}/predict/metrics", timeout=3).json()
+    n_stations = health.get("stations_registered", 10)
+    nse_val = metrics_res.get("lstm", {}).get("nse_mean", 0.0)
+    nse_display = f"{nse_val:.2f}" if nse_val > 0 else "—"
+    data_source = metrics_res.get("lstm", {}).get("data_source", "none")
+    source_label = f"({data_source})" if data_source != "none" else "(not trained)"
+except Exception:
+    n_stations = 10
+    nse_display = "—"
+    source_label = "(API offline)"
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric("🌧️ Active Alerts", "3", delta="↑ 1 from yesterday", delta_color="inverse")
+    st.metric("🌧️ Active Alerts", "—", help="Connect API for live alerts")
 with col2:
-    st.metric("📊 Monitored Stations", "325", help="GloFAS virtual telemetry stations")
+    st.metric("📊 Monitored Stations", str(n_stations), help="GloFAS virtual telemetry stations")
 with col3:
-    st.metric("🎯 Model NSE", "0.82", help="Nash-Sutcliffe Efficiency on validation")
+    st.metric("🎯 Model NSE", nse_display, help=f"Nash-Sutcliffe Efficiency {source_label}")
 with col4:
     st.metric("🗺️ Coverage", "India-wide", help="All major river basins")
 
