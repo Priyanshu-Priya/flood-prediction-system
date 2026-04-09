@@ -9,6 +9,12 @@ Run: streamlit run dashboard/app.py --server.port 8501
 
 import streamlit as st
 import requests
+import os
+
+# ── API Configuration ──
+DEFAULT_API_URL = os.getenv("FLOOD_DASH_api_base_url", "http://localhost:8000")
+if "api_url" not in st.session_state:
+    st.session_state["api_url"] = DEFAULT_API_URL
 
 # ── Page Configuration ──
 st.set_page_config(
@@ -101,9 +107,11 @@ with st.sidebar:
     # API Status
     api_url = st.text_input(
         "API URL",
-        value="http://localhost:8000",
-        help="FastAPI prediction service URL",
+        value=st.session_state["api_url"],
+        key="api_url_input",
+        help="FastAPI prediction service URL (use 'http://api:8000' inside Docker)",
     )
+    st.session_state["api_url"] = api_url
 
     st.markdown("---")
 
@@ -189,7 +197,7 @@ st.markdown('<h1 class="main-header">🌊 Flood Risk Prediction System</h1>', un
 st.markdown("##### Real-time flood monitoring & prediction for India")
 
 # Quick stats — fetched from API
-api_url = st.session_state.get("api_url", "http://localhost:8000")
+api_url = st.session_state["api_url"]
 
 try:
     health = requests.get(f"{api_url}/health", timeout=2).json()

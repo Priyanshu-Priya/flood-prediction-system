@@ -28,7 +28,8 @@ horizon_hours = int(horizon.replace("h", ""))
 now = datetime.now()
 
 # Fetch real forecast from API
-api_url = "http://localhost:8000/predict/water-level"
+api_url = f"{st.session_state.get('api_url', 'http://localhost:8000')}/predict/water-level"
+
 payload = {
     "station_id": station,
     "forecast_hours": horizon_hours,

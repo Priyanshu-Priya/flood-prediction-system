@@ -11,6 +11,10 @@ services:
     volumes:
       - ../data:/app/data
       - ../models:/app/models
+      - ../outputs:/app/outputs
+      - ../logs:/app/logs
+    env_file:
+      - ../.env
     environment:
       - FLOOD_LSTM_device=cuda
       - FLOOD_XGB_tree_method=gpu_hist
@@ -26,8 +30,11 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 40s
     restart: unless-stopped
+    networks:
+      - flood-network
 
   dashboard:
     build:
@@ -36,13 +43,21 @@ services:
     container_name: flood-dashboard
     ports:
       - "8501:8501"
+    volumes:
+      - ../data:/app/data
+    env_file:
+      - ../.env
     environment:
       - FLOOD_DASH_api_base_url=http://api:8000
     depends_on:
       api:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - flood-network
 
 networks:
-  default:
+  flood-network:
     name: flood-network
+    driver: bridge
+

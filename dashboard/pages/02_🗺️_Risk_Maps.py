@@ -28,7 +28,8 @@ with col3:
 st.markdown("---")
 
 # Fetch risk stats from API
-api_url = "http://localhost:8000/predict/susceptibility"
+api_url = f"{st.session_state.get('api_url', 'http://localhost:8000')}/predict/susceptibility"
+
 payload = {
     "min_lon": default_bbox[0],
     "min_lat": default_bbox[1],

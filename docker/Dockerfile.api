@@ -1,19 +1,33 @@
-FROM python:3.11-slim
+FROM pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime
 
 WORKDIR /app
 
-# Install system deps for GDAL
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gdal-bin libgdal-dev gcc g++ && \
-    rm -rf /var/lib/apt/lists/*
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
+# Install system dependencies (GDAL and ECCODES)
+# ECCODES is critical for cfgrib (GloFAS data)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdal-bin \
+    libgdal-dev \
+    libeccodes-dev \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy application code
 COPY config/ config/
 COPY src/ src/
 COPY api/ api/
 
 EXPOSE 8000
 
+# Use uvicorn to serve the API
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+

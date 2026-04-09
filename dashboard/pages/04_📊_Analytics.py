@@ -16,11 +16,13 @@ st.set_page_config(page_title="Analytics", page_icon="📊", layout="wide")
 st.markdown("# 📊 Model Analytics & Performance")
 
 # Fetch data from API
+api_url = st.session_state.get("api_url", "http://localhost:8000")
+
 try:
-    metrics_res = requests.get("http://localhost:8000/predict/metrics")
+    metrics_res = requests.get(f"{api_url}/predict/metrics")
     metrics = metrics_res.json() if metrics_res.status_code == 200 else {}
     
-    stations_res = requests.get("http://localhost:8000/gauges/stations")
+    stations_res = requests.get(f"{api_url}/gauges/stations")
     stations_data = stations_res.json() if stations_res.status_code == 200 else []
 except:
     metrics = {}

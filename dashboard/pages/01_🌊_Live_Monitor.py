@@ -16,6 +16,7 @@ st.markdown("Real-time water levels from GloFAS virtual telemetry stations acros
 # Fetch station data from API (fallback to sample data)
 api_url = st.session_state.get("api_url", "http://localhost:8000")
 
+
 try:
     stations_res = requests.get(f"{api_url}/gauges/stations", timeout=3)
     if stations_res.status_code == 200:
