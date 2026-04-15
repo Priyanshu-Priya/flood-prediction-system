@@ -121,6 +121,35 @@ Flood Risk Prediction System/
 
 ---
 
+## 📊 Data Provenance & Acknowledgments
+
+The system is built upon authoritative hydrological and geospatial datasets, specifically tailored for the Indian subcontinent.
+
+### 🌊 GloFAS Historical Discharge
+Source: **Copernicus Emergency Management Service (CEMS) Early Warning Data Store (EWDS)**
+
+| Feature | Details |
+| :--- | :--- |
+| **Dataset** | GloFAS Historical (Global Flood Awareness System) |
+| **Variable** | River discharge in the last 24 hours (Consolidated) |
+| **Model** | LISFLOOD Hydrological Model |
+| **System Version** | Version 4.0 |
+| **Data Format** | GRIB2 |
+| **Resolution** | 0.1° (~11km) |
+
+**Simulated Periods:**
+*   **2022 Monsoon**: June – August (Patna/Delhi focus) | Bbox: [6°, 68°] to [37°, 97°]
+*   **2019 Full Year**: January – December (Pan-India Training) | Bbox: [6°, 66°] to [38°, 100°]
+
+### 🗺️ Geographic & Static Layers
+| Layer | Source | Resolution | Use Case |
+| :--- | :--- | :--- | :--- |
+| **High-Res DEM** | ALOS PALSAR RTC | 12.5m | Topographic Wetness Index (TWI) & Slope |
+| **Land Cover** | ESA WorldCover | 10m | Runoff coefficient calculation |
+| **Precipitation** | IMD Gridded / NASA GPM | 0.1° | Antecedent Precipitation Index (API) proxy |
+
+---
+
 ## 🛠️ Technology Stack
 
 | Component | Technology |
