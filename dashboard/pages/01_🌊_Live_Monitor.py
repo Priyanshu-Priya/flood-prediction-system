@@ -14,7 +14,17 @@ st.set_page_config(page_title="Live Monitor", page_icon="🌊", layout="wide")
 apply_global_css()
 
 st.markdown("# 🌊 Live Flood Monitor")
-st.markdown("Real-time water levels from GloFAS virtual telemetry stations across the continent")
+st.markdown("Real-time simulation using GloFAS historical discharge data (June–August 2022)")
+st.info("ℹ️ Monitoring current hydrological state based on selected simulation date.")
+
+from datetime import datetime
+# Simulation date control
+simulation_date = st.date_input(
+    "Simulation Target Date", 
+    value=datetime(2022, 7, 15).date(), 
+    min_value=datetime(2022, 6, 1).date(), 
+    max_value=datetime(2022, 8, 31).date()
+)
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Fetch station data from API (fallback to sample data)
@@ -22,7 +32,11 @@ api_url_base = "http://api:8000" if "api_url" not in st.session_state else st.se
 api_url = api_url_base
 
 try:
-    stations_res = requests.get(f"{api_url}/gauges/stations", timeout=3)
+    stations_res = requests.get(
+        f"{api_url}/gauges/stations", 
+        params={"date": simulation_date.strftime("%Y-%m-%d")},
+        timeout=5
+    )
     if stations_res.status_code == 200:
         raw_stations = stations_res.json().get("stations", [])
         if raw_stations:
@@ -39,18 +53,11 @@ try:
             raise ValueError("Empty station list")
     else:
         raise ConnectionError(f"API returned {stations_res.status_code}")
-except Exception:
-    # Fallback sample data
-    stations_data = pd.DataFrame([
-        {"name": "Farakka Barrage (Synthetic)", "lat": 24.81, "lon": 87.92, "river": "Ganga",
-         "level": 12.5, "danger": 15.0, "warning": 13.5, "alert": "GREEN"},
-        {"name": "Varanasi (Synthetic)", "lat": 25.32, "lon": 83.01, "river": "Ganga",
-         "level": 14.2, "danger": 15.0, "warning": 13.5, "alert": "ORANGE"},
-        {"name": "Patna (Synthetic)", "lat": 25.60, "lon": 85.10, "river": "Ganga",
-         "level": 10.8, "danger": 12.0, "warning": 10.5, "alert": "YELLOW"},
-        {"name": "Dibrugarh (Synthetic)", "lat": 27.47, "lon": 94.91, "river": "Brahmaputra",
-         "level": 16.3, "danger": 16.0, "warning": 14.5, "alert": "RED"},
-    ])
+except Exception as e:
+    st.error(f"Failed to connect to simulation backend: {e}")
+    # Minimal fallback structure to prevent page crash but show error
+    stations_data = pd.DataFrame(columns=["name", "lat", "lon", "river", "level", "danger", "warning", "alert"])
+    st.stop()
 
 # Alert summary
 col1, col2, col3, col4 = st.columns(4)

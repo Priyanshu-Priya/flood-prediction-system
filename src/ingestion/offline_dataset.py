@@ -121,3 +121,41 @@ class OfflineDataset:
         df["discharge_cumecs"] = df["discharge_cumecs"].fillna(0.0)
         df.set_index("timestamp", inplace=True)
         return df
+
+    @classmethod
+    def get_bulk_data_by_date(cls, target_date: str, coordinates: list[dict]) -> dict[str, float]:
+        """
+        Extract river discharge for multiple coordinates on the same date efficiently.
+        coordinates: list of {"station_id": str, "lat": float, "lon": float}
+        returns: dict {station_id: discharge_value}
+        """
+        ds = cls.get_dataset()
+        t = pd.to_datetime(target_date)
+        
+        # Clamp date if necessary or error
+        min_date = pd.to_datetime("2022-06-01")
+        max_date = pd.to_datetime("2022-08-31")
+        t = max(min(t, max_date), min_date)
+
+        lat_var = "latitude" if "latitude" in ds.coords else "lat"
+        lon_var = "longitude" if "longitude" in ds.coords else "lon"
+        
+        var_candidates = [v for v in ds.data_vars if "discharge" in v.lower() or v.lower() in ("dis", "dis24", "rdis")]
+        discharge_var = var_candidates[0] if var_candidates else list(ds.data_vars.keys())[0]
+
+        results = {}
+        # Select the time slice once
+        time_ds = ds.sel(time=t, method="nearest")
+        
+        for coord in coordinates:
+            sid = coord["station_id"]
+            lat, lon = coord["lat"], coord["lon"]
+            try:
+                # Nearest neighbor in space
+                val = time_ds.sel({lat_var: lat, lon_var: lon}, method="nearest")[discharge_var].values.item()
+                results[sid] = round(float(val), 2) if not np.isnan(val) else 0.0
+            except Exception as e:
+                logger.error(f"Bulk extract failed for {sid}: {e}")
+                results[sid] = 0.0
+                
+        return results
