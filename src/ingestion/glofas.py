@@ -330,7 +330,8 @@ class GloFASClient:
         Returns:
             Path to the downloaded/cached NetCDF file
         """
-        from src.utils.copernicus_auth import copernicus_auth
+        # Local import removed as copernicus_auth is deprecated in offline mode.
+        pass
 
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")

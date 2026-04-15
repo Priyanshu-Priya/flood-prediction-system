@@ -36,13 +36,10 @@ async def lifespan(app: FastAPI):
     setup_logging(level="INFO")
     logger.info("🌊 Flood Risk Prediction Service starting...")
 
-    # Validate required credentials
-    from src.utils.copernicus_auth import copernicus_auth
-    try:
-        copernicus_auth.validate_env()
-    except Exception as e:
-        logger.error(f"Startup Validation Failed: {e}")
-        # In production, you might want to exit(1) here
+    # Models are preloaded on demand or during first request to keep first startup fast
+    # but here we trigger lazy loading to ensure they are ready in cache.
+    lstm = get_lstm_model()
+    xgb = get_xgboost_model()
     
     # Preload models into cache
     lstm = get_lstm_model()
