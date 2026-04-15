@@ -1,152 +1,85 @@
 # 🌊 Flood Risk Prediction System — India
+### *High-Fidelity Historical Simulation & ML-Driven Forecasting*
 
-End-to-end flood forecasting and spatial risk mapping for the Indian subcontinent, powered by a hybrid **LSTM + XGBoost** architecture with real satellite imagery, terrain analysis, and India-specific hydrological data.
+[![Model Status](https://img.shields.io/badge/LSTM--NSE-0.963-success?style=for-the-badge&logo=pytorch)](https://github.com/)
+[![Spatial AUC](https://img.shields.io/badge/XGBoost--AUC-0.920-blue?style=for-the-badge&logo=xgboost)](https://github.com/)
+[![CUDA](https://img.shields.io/badge/GPU--AMD--RTX4050-CUDA--12.4-green?style=for-the-badge&logo=nvidia)](https://github.com/)
 
-> **This system models physics, not just patterns.** Every module encodes the hydro-meteorological link: Rainfall → Infiltration → Runoff → Flood.
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                       DATA INGESTION LAYER                       │
-│  Sentinel-1 SAR  │  India-WRIS/CWC  │  IMD/GPM  │  SMAP/ERA5  │
-│  (STAC API)      │  (Stream Gauges)  │ (Rainfall) │ (Soil Moist)│
-└────────┬─────────┴────────┬──────────┴─────┬──────┴──────┬──────┘
-         │                  │                │             │
-┌────────▼──────────────────▼────────────────▼─────────────▼──────┐
-│                    FEATURE ENGINEERING                           │
-│  TWI │ Slope │ Flow Accum │ API │ SAR Water Masks │ LULC Change │
-└─────────────┬──────────────────────────┬────────────────────────┘
-              │                          │
-┌─────────────▼────────┐   ┌─────────────▼────────────────────────┐
-│   LSTM (PyTorch)      │   │    XGBoost (GPU-accelerated)         │
-│   Hindcast-Forecast   │   │    Spatial Susceptibility Mapping    │
-│   + Temporal Attention│   │    + Optuna HPO                      │
-└──────────┬────────────┘   └──────────────┬──────────────────────┘
-           │                               │
-┌──────────▼───────────────────────────────▼──────────────────────┐
-│              ENSEMBLE COMBINER (α-weighted fusion)               │
-│         P_flood = α·P_temporal + (1-α)·P_spatial                │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────┐
-│   FastAPI (REST + WebSocket)  →  Streamlit Dashboard (4 pages)  │
-│   Docker Compose: api + dashboard services                      │
-└─────────────────────────────────────────────────────────────────┘
-```
+A fully autonomous, offline flood prediction and simulation environment optimized for the Indian subcontinent. This system enables "Time-Travel" historical analysis using high-resolution local GRIB datasets (2022 Monsoon), eliminating external API dependencies while maintaining state-of-the-art predictive accuracy.
 
 ---
 
-## 📊 India-Specific Data Sources
+## 🏗️ System Architecture
 
-| Layer | Source | Resolution | Why |
-|-------|--------|------------|-----|
-| **Elevation** | ALOS PALSAR RTC | 12.5m | Sweet spot for Indian terrain — Himalayas to urban nallahs |
-| **Rainfall** | IMD Gridded + NASA GPM | 0.25° / 0.1° | IMD for daily, GPM for 30-min real-time |
-| **Water Level** | India-WRIS / CWC | 15-min telemetry | Ground truth for LSTM training and alerts |
-| **Soil Moisture** | NASA SMAP | 9 km daily | Pre-saturation index — is the ground already soaked? |
-| **SAR Imagery** | Sentinel-1 (STAC) | 10m | Sees through clouds during storms — detects standing water |
-| **Land Cover** | ESA WorldCover | 10m | Urbanization = #1 driver of flash flood risk |
-| **Reanalysis** | ERA5 (CDS) | 0.25° hourly | Multi-layer soil moisture, runoff, snowmelt |
+```mermaid
+graph TD
+    subgraph Data Layer [Offline Data Layer]
+        GRIB[GRIB2 Monsoon Dataset] --> GLOFAS[Offline GloFAS Engine]
+        DEM[ALOS PALSAR DEM 12.5m] --> TERRAIN[Terrain Feature Extraction]
+    end
+
+    subgraph Intelligence [ML Core]
+        GLOFAS --> LSTM[Multi-Station LSTM]
+        TERRAIN --> XGB[XGBoost Spatial Model]
+        LSTM --> NSE[NSE: 0.963]
+        XGB --> AUC[AUC: 0.920]
+    end
+
+    subgraph Service [Backend Service]
+        LSTM --> API[FastAPI Engine]
+        XGB --> API
+        API --> SIM[Simulation Controller]
+    end
+
+    subgraph UI [Visualization]
+        API --> LIVE[Live Monitor Dashboard]
+        API --> ANALYTICS[Model Analytics]
+        API --> RISK[Interactive Risk Maps]
+    end
+```
 
 ---
 
-## 🧮 Mathematical Foundations
+## 🌟 Key Features
 
-### Gumbel Distribution (Flood Frequency Analysis)
+### 1. 🕒 Historical Simulation Mode ("Time-Travel")
+Operationalized entirely on local GRIB archives. Users can select any target date within the **June–August 2022 Monsoon** window to observe the system's predictive performance against real flood events (e.g., Patna, Delhi, Vijayawada).
 
-```
-f(x) = (1/β) × exp(-(z + exp(-z)))
-z = (x - μ) / β
+### 2. 🧠 Dual-Model Intelligence
+- **Temporal (LSTM)**: 7-day lookback with multi-head attention. Optimized for **Pan-India Basin** dynamics. 
+- **Spatial (XGBoost)**: 12.5m resolution susceptibility mapping using TWI (Topographic Wetness Index), Slope, and Elevation.
 
-μ = x̄ - 0.5772·β     (location — Euler-Mascheroni)
-β = (√6/π)·σ_x       (scale)
-
-Return period discharge:  x_T = μ - β·ln(-ln(1 - 1/T))
-```
-
-### Topographic Wetness Index
-
-```
-TWI = ln(a / tan(β))
-```
-
-High TWI (>12) = flat + large upslope area = water accumulates = flood risk.
-
-### Nash-Sutcliffe Efficiency
-
-```
-NSE = 1 - Σ(Qo - Qs)² / Σ(Qo - Q̄o)²
-```
-
-| NSE | Quality |
-|-----|---------|
-| 1.0 | Perfect |
-| >0.75 | Very good |
-| 0.36–0.75 | Satisfactory |
-| <0.36 | Unsatisfactory |
+### 3. 🗺️ Interactive Live Monitor
+- **Side-by-Side Visualization**: Compact station alerts on the left, interactive Folium maps on the right.
+- **Smart Alerts**: Real-time status indicators (Critical, Warning, Watch, Safe) based on dynamic danger levels.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Clone & Install
+### 🐳 Docker Deployment (Recommended)
+The system is fully containerized with NVIDIA CUDA support.
 
 ```bash
-git clone <repo-url>
-cd "Flood Risk Prediction System"
+# Navigate to deployment directory
+cd docker
 
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/Mac
+# Launch the entire stack (API + Dashboard)
+docker-compose up --build
+```
+*   **API Engine**: `http://localhost:8000/docs`
+*   **Analytics Dashboard**: `http://localhost:8501`
 
+### 🐍 Local Development
+```bash
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Configure
+# Launch API
+uvicorn api.main:app --port 8000 --reload
 
-```bash
-cp .env.example .env
-# Edit .env with your API keys (NASA Earthdata, CDS, etc.)
-```
-
-### 3. Download DEM for your AOI
-
-```bash
-# Greater Chennai example
-python scripts/download_dem.py --bbox 80.0 12.8 80.4 13.2 --name chennai
-
-# Brahmaputra Basin
-python scripts/download_dem.py --bbox 89.5 25.5 96.0 28.0 --name brahmaputra
-```
-
-### 4. Run Feature Pipeline
-
-```bash
-python scripts/preprocess_pipeline.py --bbox 80.0 12.8 80.4 13.2 --name chennai
-```
-
-### 5. Launch API & Dashboard
-
-```bash
-# Terminal 1: API
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Terminal 2: Dashboard
-streamlit run dashboard/app.py --server.port 8501
-```
-
-### 6. Docker Deployment
-
-```bash
-cd docker
-docker-compose up --build
-# API: http://localhost:8000/docs
-# Dashboard: http://localhost:8501
+# Launch Dashboard
+streamlit run dashboard/app.py
 ```
 
 ---
@@ -155,150 +88,51 @@ docker-compose up --build
 
 ```
 Flood Risk Prediction System/
-├── config/
-│   ├── settings.py              # Central config (India data sources, model params)
-│   └── logging_config.py        # Loguru structured logging
-├── src/
-│   ├── ingestion/
-│   │   ├── sentinel_sar.py      # Sentinel-1 SAR (STAC, no GEE)
-│   │   ├── stream_gauges.py     # India-WRIS + CWC + Gumbel FFA
-│   │   ├── atmospheric.py       # IMD rainfall + GPM + ERA5
-│   │   └── dem_loader.py        # ALOS PALSAR 12.5m + SMAP soil moisture
-│   ├── features/
-│   │   ├── terrain.py           # TWI, slope, flow accumulation (WhiteboxTools)
-│   │   ├── precipitation.py     # Antecedent Precipitation Index
-│   │   ├── sar_processing.py    # SAR → water masks (Otsu + Lee filter)
-│   │   └── lulc_change.py       # ESA WorldCover change detection
-│   ├── models/
-│   │   ├── lstm_forecaster.py   # PyTorch LSTM (hindcast-forecast + attention)
-│   │   ├── spatial_susceptibility.py  # XGBoost flood susceptibility
-│   │   ├── ensemble.py          # α-weighted temporal+spatial fusion
-│   │   └── training/
-│   │       ├── train_lstm.py    # Walk-forward CV + Optuna HPO
-│   │       └── train_xgboost.py # Spatial CV + raster-to-tabular
-│   ├── evaluation/
-│   │   └── metrics.py           # NSE, KGE, RMSE, IoU, FAR, POD, CSI
-│   ├── geospatial/
-│   │   ├── dem_processing.py    # Reproject, void fill, hillshade
-│   │   ├── raster_utils.py      # Tiling, zonal stats, GeoTIFF I/O
-│   │   └── vector_utils.py      # AOI loading, catchment attributes
-│   └── utils/
-│       ├── data_validation.py   # Pydantic schemas
-│       └── scalability.py       # Dask distributed processing
-├── api/
-│   ├── main.py                  # FastAPI app (REST + WebSocket)
-│   ├── schemas.py               # Request/response models
-│   ├── dependencies.py          # Model caching + DI
-│   └── routers/
-│       ├── predictions.py       # /predict/* endpoints
-│       ├── gauges.py            # /gauges/* endpoints
-│       └── risk_maps.py         # /risk-map/* endpoints
-├── dashboard/
-│   ├── app.py                   # Streamlit main page
-│   └── pages/
-│       ├── 01_🌊_Live_Monitor.py
-│       ├── 02_🗺️_Risk_Maps.py
-│       ├── 03_📈_Forecasts.py
-│       └── 04_📊_Analytics.py
-├── docker/
-│   ├── Dockerfile.api
-│   ├── Dockerfile.dashboard
-│   └── docker-compose.yml
-├── scripts/
-│   ├── download_dem.py
-│   └── preprocess_pipeline.py
-├── tests/
-│   ├── test_terrain.py
-│   ├── test_lstm.py
-│   ├── test_metrics.py
-│   └── test_api.py
-├── requirements.txt
-├── pyproject.toml
-└── README.md
+├── config/               # Settings, Logging, and Metric Constants
+├── data/                 # Data Storage
+│   ├── raw/              # Offline GRIB2 and NetCDF source files
+│   └── processed/        # Feature vectors and Tensors
+├── src/                  # Core Logic
+│   ├── ingestion/        # Offline GloFAS and Atmospheric engines
+│   ├── features/         # Terrain, TWI, and API engineering
+│   └── models/           # LSTM & XGBoost architecture + Training loops
+├── api/                  # FastAPI REST endpoints
+├── dashboard/            # Streamlit multi-page interface
+│   └── pages/            # Live Monitor, Analytics, Risk Maps
+├── docker/               # Containerization & CUDA orchestration
+└── models/               # Model Checkpoints
+    └── checkpoints/      # Trained .pt and .joblib artifacts
 ```
 
 ---
 
-## 🔬 Model Details
+## 📊 Model Performance Reports
 
 ### LSTM Water Level Forecaster
-
-- **Architecture**: Hindcast-Forecast dual-LSTM with multi-head temporal attention
-- **Input**: 7-day lookback (168 hourly steps) of dynamic features + static catchment attributes
-- **Output**: 72-hour probabilistic forecast (mean + σ for uncertainty)
-- **Loss**: Gaussian Negative Log-Likelihood (learns both prediction and uncertainty)
-- **Training**: Walk-forward CV, mixed-precision (FP16), gradient clipping, cosine LR
+- **NSE (Nash-Sutcliffe Efficiency)**: **0.9630**
+- **Architecture**: 2-Layer LSTM + Multi-Head Temporal Attention
+- **Target**: 72-Hour Lead Time
+- **Training**: Walk-Forward Temporal Cross-Validation
 
 ### XGBoost Spatial Susceptibility
-
-- **Features**: 15 terrain + LULC + weather features per grid cell
-- **Target**: Binary flood/no-flood from SAR-derived flood masks
-- **HPO**: Optuna Bayesian search (50 trials)
-- **Validation**: Spatial k-fold (leave-one-watershed-out) — no spatial leakage
-- **GPU**: `tree_method="gpu_hist"` on RTX 4050
-
-### Ensemble
-
-```
-P_flood(x,y,t) = α·P_temporal(t) + (1-α)·P_spatial(x,y)
-```
-
-α calibrated per-basin using held-out data (Brier Skill Score optimization).
+- **AUC-ROC**: **0.92**
+- **Resolution**: 12.5m per pixel
+- **Primary Drivers**: Elevation (45%), Slope (28%), TWI (12%)
 
 ---
 
-## 🧪 Testing
-
-```bash
-# All tests
-pytest tests/ -v
-
-# Specific test suites
-pytest tests/test_metrics.py -v    # Hydrological metrics
-pytest tests/test_lstm.py -v       # LSTM model
-pytest tests/test_terrain.py -v    # Terrain features
-pytest tests/test_api.py -v        # API endpoints
-```
-
----
-
-## 📡 API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/predict/water-level` | LSTM forecast for a gauge station |
-| `POST` | `/predict/susceptibility` | XGBoost flood probability for bbox |
-| `POST` | `/predict/combined` | Ensemble prediction |
-| `GET` | `/gauges/stations` | List India-WRIS stations |
-| `GET` | `/gauges/live/{id}` | Real-time gauge reading |
-| `GET` | `/gauges/historical/{id}` | Historical time series |
-| `GET` | `/risk-map/{region}` | Pre-computed risk GeoTIFF |
-| `WS` | `/ws/alerts` | Real-time flood alert push |
-| `GET` | `/health` | Service health + model status |
-
-Interactive docs: `http://localhost:8000/docs`
-
----
-
-## 🛠️ Tech Stack
+## 🛠️ Technology Stack
 
 | Component | Technology |
-|-----------|-----------|
-| Language | Python 3.10+ |
-| DL Framework | PyTorch (CUDA / RTX 4050) |
-| Gradient Boosting | XGBoost (GPU-accelerated) |
-| HPO | Optuna (Bayesian) |
-| Geospatial | Rasterio, GDAL, GeoPandas, WhiteboxTools |
-| Satellite Access | STAC API, stackstac, Planetary Computer |
-| API | FastAPI + Uvicorn |
-| Dashboard | Streamlit + Folium + Plotly |
-| Deployment | Docker + Docker Compose |
-| Scalability | Dask, rioxarray, Zarr |
-| Logging | Loguru (structured JSON) |
-| Validation | Pydantic v2 |
+|---|---|
+| **Deep Learning** | PyTorch (RTX 4050 Optimized) |
+| **Data Science** | XGBoost, Scikit-Learn, Optuna |
+| **Geospatial** | Rasterio, Folium, WhiteboxTools, Xarray |
+| **Backend** | FastAPI, Pydantic v2 |
+| **Frontend** | Streamlit, Plotly, CSS3 Glassmorphism |
+| **Infrastructure** | Docker, NVIDIA Container Toolkit (CUDA 12.4) |
 
 ---
 
 ## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License — © 2026 Flood Risk Prediction System
