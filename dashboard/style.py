@@ -65,6 +65,22 @@ def apply_global_css():
         margin-top: 0.2rem;
     }
 
+    /* Compact Metric Variants */
+    .compact-card {
+        padding: 0.8rem 1rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    .compact-card .glass-metric-label {
+        font-size: 0.75rem;
+    }
+    .compact-card .glass-metric-value {
+        font-size: 1.5rem;
+        margin-top: 0;
+    }
+    .compact-card .glass-metric-subtext {
+        font-size: 0.7rem;
+    }
+
     /* Streamlit Native Overrides */
     .stTabs [data-baseweb="tab-list"] {
         gap: 2rem;
@@ -112,9 +128,10 @@ def apply_global_css():
 </style>
     """, unsafe_allow_html=True)
 
-def metric_card(label: str, value: str, subtext: str = ""):
+def metric_card(label: str, value: str, subtext: str = "", compact: bool = False):
+    card_class = "glass-card compact-card" if compact else "glass-card"
     st.markdown(f"""
-    <div class="glass-card">
+    <div class="{card_class}">
         <div class="glass-metric-label">{label}</div>
         <div class="glass-metric-value">{value}</div>
         <div class="glass-metric-subtext">{subtext}</div>
