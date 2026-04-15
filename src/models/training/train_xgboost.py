@@ -19,6 +19,7 @@ from loguru import logger
 from config.settings import settings, MODEL_DIR, PROCESSED_DATA_DIR
 from src.evaluation.metrics import HydrologicalMetrics
 from src.models.spatial_susceptibility import SpatialFloodSusceptibility
+from src.utils.metrics_logger import log_metrics
 
 
 class XGBoostTrainer:
@@ -199,6 +200,16 @@ class XGBoostTrainer:
         if save_model:
             model_path = self.model.save_model()
             results["model_path"] = str(model_path)
+
+        # Log metrics for dashboard
+        log_metrics("xgboost", {
+            "auc_roc": round(auc, 4),
+            "brier_score": round(brier, 4),
+            "best_f1": round(best_f1, 4),
+            "n_features": len(results.get("feature_importance", {})),
+            "feature_importance": results.get("feature_importance", {}),
+            "data_source": "Satellite SAR"
+        })
 
         return results
 

@@ -1,5 +1,5 @@
-version: "3.9"
-
+# Flood Risk Prediction System
+# Deployment Compose Configuration
 services:
   api:
     build:
@@ -45,6 +45,7 @@ services:
       - "8501:8501"
     volumes:
       - ../data:/app/data
+      - ../models:/app/models
     env_file:
       - ../.env
     environment:

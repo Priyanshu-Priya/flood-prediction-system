@@ -5,6 +5,7 @@ WORKDIR /app
 # Set environment variables for Python
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
 # Install system dependencies (GDAL and ECCODES)
 RUN apt-get update && apt-get install -y --no-install-recommends \

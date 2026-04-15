@@ -32,15 +32,15 @@ Architecture:
 Loss: Gaussian Negative Log-Likelihood (probabilistic output)
 """
 
-from __future__ import annotations
-
 import math
 from typing import Optional
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import joblib
 from loguru import logger
 
 from config.settings import settings
@@ -205,6 +205,7 @@ class FloodLSTM(nn.Module):
 
         self.d_model = d_model
         self.forecast_horizon = forecast_horizon
+        self.n_forecast_met_features = n_forecast_met_features
 
         # Input projection: raw features → d_model
         self.input_projection = nn.Sequential(
@@ -262,6 +263,7 @@ class FloodLSTM(nn.Module):
             nn.Linear(d_model // 2, 1),
             nn.Softplus(),  # Ensure positive std
         )
+        self.min_std = 1e-4
 
         # Initialize weights
         self._init_weights()
@@ -329,7 +331,7 @@ class FloodLSTM(nn.Module):
         else:
             # If no met forecasts, pad with zeros
             padding = torch.zeros(
-                batch_size, self.forecast_horizon, 4,  # n_forecast_met_features
+                batch_size, self.forecast_horizon, self.n_forecast_met_features,
                 device=history.device,
             )
             forecast_input = torch.cat([context_repeated, padding], dim=-1)
@@ -341,7 +343,7 @@ class FloodLSTM(nn.Module):
 
         # ── Output Heads ──
         mean = self.mean_head(forecast_out)   # (batch, horizon, 1)
-        std = self.std_head(forecast_out)     # (batch, horizon, 1)
+        std = self.std_head(forecast_out) + self.min_std  # Ensure positive std
 
         return {"mean": mean, "std": std}
 
@@ -374,10 +376,14 @@ class GaussianNLLLoss(nn.Module):
         std: torch.Tensor,
         target: torch.Tensor,
     ) -> torch.Tensor:
+        # Standardize inputs: ensure no zeros in std
         std = torch.clamp(std, min=self.min_std)
         variance = std ** 2
-
-        nll = 0.5 * (torch.log(variance) + (target - mean) ** 2 / variance)
+        
+        # log(variance) is safer for small values than log(std^2)
+        log_var = 2 * torch.log(std)
+        
+        nll = 0.5 * (log_var + (target - mean) ** 2 / variance)
 
         return nll.mean()
 
@@ -403,8 +409,24 @@ class FloodForecaster:
         device: Optional[str] = None,
     ):
         self.device = device or settings.lstm.device
+        self.checkpoint_dir = Path(checkpoint_path).parent
         self.model = self._load_model(checkpoint_path)
         self.model.eval()
+        
+        # Load scalers if available
+        self.feature_scaler = self._load_scaler("feature_scaler.joblib")
+        self.target_scaler = self._load_scaler("target_scaler.joblib")
+
+    def _load_scaler(self, filename: str):
+        path = self.checkpoint_dir / filename
+        if path.exists():
+            try:
+                scaler = joblib.load(path)
+                logger.info(f"Loaded scaler from {path}")
+                return scaler
+            except Exception as e:
+                logger.warning(f"Could not load scaler {filename}: {e}")
+        return None
 
     def _load_model(self, checkpoint_path: str) -> FloodLSTM:
         """Load trained model from checkpoint."""
@@ -427,44 +449,72 @@ class FloodForecaster:
         logger.info("Model loaded successfully")
         return model
 
-    @torch.no_grad()
     def predict(
         self,
         history: np.ndarray,
         static: np.ndarray,
         forecast_met: Optional[np.ndarray] = None,
-        scaler_mean: Optional[np.ndarray] = None,
-        scaler_std: Optional[np.ndarray] = None,
     ) -> dict[str, np.ndarray]:
         """
         Generate flood forecast with uncertainty estimates.
+
+        Handles internal normalization if scalers were loaded during init.
 
         Args:
             history: (lookback, n_features) historical observations
             static: (n_static,) catchment attributes
             forecast_met: (horizon, n_met) future meteorological inputs
-            scaler_mean: Feature normalization mean
-            scaler_std: Feature normalization std
 
         Returns:
             Dictionary with 'mean', 'std', 'lower_ci', 'upper_ci' arrays
         """
-        # Normalize
-        if scaler_mean is not None and scaler_std is not None:
-            history = (history - scaler_mean) / (scaler_std + 1e-8)
+        # Normalize features
+        if self.feature_scaler:
+            # Handle single sequence (lookback, n_features)
+            if history.ndim == 2:
+                history = self.feature_scaler.transform(history).astype(np.float32)
+            else:
+                # Handle batch (batch, lookback, n_features)
+                b, s, f = history.shape
+                history = self.feature_scaler.transform(history.reshape(-1, f)).reshape(b, s, f).astype(np.float32)
 
         # Convert to tensors
-        h = torch.FloatTensor(history).unsqueeze(0).to(self.device)
-        s = torch.FloatTensor(static).unsqueeze(0).to(self.device)
+        h = torch.FloatTensor(history)
+        if h.ndim == 2: h = h.unsqueeze(0)
+        h = h.to(self.device)
+        
+        s = torch.FloatTensor(static)
+        if s.ndim == 1: s = s.unsqueeze(0)
+        s = s.to(self.device)
+        
         fm = None
         if forecast_met is not None:
-            fm = torch.FloatTensor(forecast_met).unsqueeze(0).to(self.device)
+            fm = torch.FloatTensor(forecast_met)
+            if fm.ndim == 2: fm = fm.unsqueeze(0)
+            fm = fm.to(self.device)
 
         # Forward pass
-        output = self.model(h, s, fm)
+        with torch.no_grad():
+            output = self.model(h, s, fm)
 
-        mean = output["mean"].squeeze().cpu().numpy()
-        std = output["std"].squeeze().cpu().numpy()
+        mean_scaled = output["mean"].squeeze().cpu().numpy()
+        std_scaled = output["std"].squeeze().cpu().numpy()
+
+        # Inverse transform target
+        if self.target_scaler:
+            # Handle multiple steps in horizon
+            if mean_scaled.ndim == 1:
+                mean = self.target_scaler.inverse_transform(mean_scaled.reshape(-1, 1)).flatten()
+                # Std remains on a similar relative scale or can be scaled by the transform's scale_
+                std = std_scaled * getattr(self.target_scaler, "scale_", 1.0)
+            else:
+                # Batch prediction
+                b, h_dim = mean_scaled.shape
+                mean = self.target_scaler.inverse_transform(mean_scaled.reshape(-1, 1)).reshape(b, h_dim)
+                std = std_scaled * getattr(self.target_scaler, "scale_", 1.0)
+        else:
+            mean = mean_scaled
+            std = std_scaled
 
         # 90% confidence interval
         z_90 = 1.645

@@ -38,7 +38,7 @@ class TestGloFASClient:
         """Verify all station IDs are valid."""
         client = GloFASClient()
         for station in INDIA_GAUGE_STATIONS:
-            meta = client.get_station_metadata(station["station_id"])
+            meta = client._get_station(station["station_id"])
             assert meta is not None
             assert "lat" in meta
             assert "lon" in meta
@@ -47,22 +47,21 @@ class TestGloFASClient:
         """Test discharge-to-water-level conversion."""
         client = GloFASClient()
         # A reasonable discharge should give a reasonable water level
-        discharge = 500.0  # m³/s
-        level = client._discharge_to_level(discharge)
+        discharge = np.array([500.0])  # m³/s
+        level = client._discharge_to_level(discharge, danger_level=10.0)[0]
         assert level > 0
         assert level < 50  # Sanity check
 
     def test_rating_curve_monotonic(self):
         """Higher discharge should give higher water level."""
         client = GloFASClient()
-        level_low = client._discharge_to_level(100.0)
-        level_high = client._discharge_to_level(1000.0)
-        assert level_high > level_low
+        levels = client._discharge_to_level(np.array([100.0, 1000.0]), danger_level=10.0)
+        assert levels[1] > levels[0]
 
     def test_zero_discharge(self):
         """Zero discharge should give near-zero water level."""
         client = GloFASClient()
-        level = client._discharge_to_level(0.0)
+        level = client._discharge_to_level(np.array([0.0]), danger_level=10.0)[0]
         assert level >= 0
 
 

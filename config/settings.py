@@ -88,6 +88,10 @@ class DataSourceSettings(BaseSettings):
     copernicus_client_id: Optional[str] = None
     copernicus_client_secret: Optional[str] = None
 
+    # CDSE Specific (new architecture)
+    copernicus_auth_url: str = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+    copernicus_execution_url: str = "https://ewds.climate.copernicus.eu/api/retrieve/v1/processes/cems-glofas-historical/execution"
+
     # Google Earth Engine (Community Edition)
     gee_project_id: Optional[str] = None
     gee_service_account_json_path: Optional[str] = None

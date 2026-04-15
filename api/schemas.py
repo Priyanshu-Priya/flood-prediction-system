@@ -19,9 +19,10 @@ class WaterLevelPredictionRequest(BaseModel):
     station_id: str = Field(..., description="CWC/WRIS gauge station ID")
     forecast_hours: int = Field(72, ge=1, le=168, description="Forecast horizon in hours")
     include_uncertainty: bool = Field(True, description="Include confidence intervals")
+    target_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Optional date for offline historical simulation (YYYY-MM-DD)")
 
     model_config = {"json_schema_extra": {
-        "examples": [{"station_id": "CWC003", "forecast_hours": 48}]
+        "examples": [{"station_id": "GLOFAS_PATNA", "forecast_hours": 48, "target_date": "2022-07-15"}]
     }}
 
 
@@ -79,6 +80,8 @@ class WaterLevelPredictionResponse(BaseModel):
     alert: AlertInfo
     model_version: str = "1.0.0"
     nse_validation: Optional[float] = None
+    is_real_data: bool = True
+    data_sign: str = ""
 
 
 class SusceptibilityResponse(BaseModel):
@@ -91,6 +94,8 @@ class SusceptibilityResponse(BaseModel):
     risk_distribution: dict[str, int]
     risk_percentages: dict[str, float]
     geotiff_url: Optional[str] = None
+    is_real_data: bool = True
+    data_sign: str = ""
 
 
 class ModelMetricsResponse(BaseModel):
@@ -135,3 +140,19 @@ class HealthResponse(BaseModel):
     uptime_seconds: float = 0
     gpu_available: bool = False
     gpu_name: Optional[str] = None
+
+class HistoricalPredictionRequest(BaseModel):
+    """Request for offline historical simulation."""
+    latitude: float
+    longitude: float
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="YYYY-MM-DD format within Jun-Aug 2022")
+
+class HistoricalPredictionResponse(BaseModel):
+    """Response for offline historical simulation."""
+    flood_risk: str
+    probability: float
+    river_discharge: float
+    matched_latitude: float
+    matched_longitude: float
+    target_date: str
+

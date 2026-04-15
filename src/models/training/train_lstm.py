@@ -31,6 +31,7 @@ from torch.utils.data import DataLoader
 from config.settings import settings, MODEL_DIR
 from src.evaluation.metrics import HydrologicalMetrics
 from src.models.lstm_forecaster import FloodDataset, FloodLSTM, GaussianNLLLoss
+from src.utils.metrics_logger import log_metrics
 
 
 class LSTMTrainer:
@@ -220,6 +221,14 @@ class LSTMTrainer:
             f"  Total epochs: {epoch}\n"
             f"  Model saved: {output_dir / 'best_lstm_model.pt'}"
         )
+
+        # Log metrics for dashboard
+        log_metrics("lstm", {
+            "nse_mean": round(float(best_val_nse), 4),
+            "best_loss": round(float(best_val_loss), 4),
+            "total_epochs": epoch,
+            "data_source": "GloFAS 2019 (Seeded)"
+        })
 
         return {
             "best_val_nse": best_val_nse,
